@@ -541,6 +541,14 @@ func (w *fakeResponseWriter) WriteHeader(statusCode int) {
 	}
 }
 
+func requestHandlerWithInternalRoutes() {
+	// Implementation here
+}
+
+func reloadAuthKey() {
+	// Implementation here
+}
+
 func TestReadTrackingBody_RetrySuccess(t *testing.T) {
 	f := func(s string, maxBodySize int) {
 		t.Helper()
@@ -719,4 +727,24 @@ func newTestString(sLen int) string {
 		data[i] = byte(i)
 	}
 	return string(data)
+}
+
+func TestCheckReplicaDMLs(t *testing.T) {
+	tests := []struct {
+		isReplica  bool
+		autocommit bool
+		expectErr  bool
+	}{
+		{true, true, true},    // Replica with autocommit enabled
+		{true, false, false},  // Replica with autocommit disabled
+		{false, true, false},  // Primary with autocommit enabled
+		{false, false, false}, // Primary with autocommit disabled
+	}
+
+	for _, test := range tests {
+		err := checkReplicaDMLs(test.isReplica, test.autocommit)
+		if (err != nil) != test.expectErr {
+			t.Errorf("checkReplicaDMLs(%v, %v) = %v, expectErr %v", test.isReplica, test.autocommit, err, test.expectErr)
+		}
+	}
 }

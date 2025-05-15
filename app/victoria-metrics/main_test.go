@@ -20,7 +20,6 @@ import (
 	"time"
 
 	testutil "github.com/VictoriaMetrics/VictoriaMetrics/app/victoria-metrics/test"
-	"github.com/VictoriaMetrics/VictoriaMetrics/app/vminsert"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmselect"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmselect/promql"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmstorage"
@@ -184,7 +183,6 @@ func setUp() {
 	logger.Init()
 	vmstorage.Init(promql.ResetRollupResultCacheIfNeeded)
 	vmselect.Init()
-	vminsert.Init()
 	go httpserver.Serve(*httpListenAddrs, useProxyProtocol, requestHandler)
 	readyStorageCheckFunc := func() bool {
 		resp, err := http.Get(testHealthHTTPPath)
@@ -234,7 +232,6 @@ func tearDown() {
 	if err := httpserver.Stop(*httpListenAddrs); err != nil {
 		log.Printf("cannot stop the webservice: %s", err)
 	}
-	vminsert.Stop()
 	vmstorage.Stop()
 	vmselect.Stop()
 	fs.MustRemoveAll(storagePath)

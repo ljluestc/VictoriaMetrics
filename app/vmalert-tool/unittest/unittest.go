@@ -27,8 +27,6 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/remotewrite"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/rule"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmalert/templates"
-	"github.com/VictoriaMetrics/VictoriaMetrics/app/vminsert"
-	"github.com/VictoriaMetrics/VictoriaMetrics/app/vminsert/promremotewrite"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmselect"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmselect/prometheus"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmselect/promql"
@@ -102,11 +100,9 @@ func UnitTest(files []string, disableGroupLabel bool, externalLabels []string, e
 	// adding time.Now().UnixNano() to avoid possible file conflict when multiple processes run on a single host
 	storagePath = filepath.Join(os.TempDir(), testStoragePath, strconv.FormatInt(time.Now().UnixNano(), 10))
 	processFlags()
-	vminsert.Init()
 	vmselect.Init()
 	// storagePath will be created again when closing vmselect, so remove it again.
 	defer fs.MustRemoveAll(storagePath)
-	defer vminsert.Stop()
 	defer vmselect.Stop()
 	disableAlertgroupLabel = disableGroupLabel
 

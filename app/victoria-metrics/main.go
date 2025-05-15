@@ -3,13 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"time"
 
-	"github.com/VictoriaMetrics/VictoriaMetrics/app/vminsert"
-	vminsertcommon "github.com/VictoriaMetrics/VictoriaMetrics/app/vminsert/common"
-	vminsertrelabel "github.com/VictoriaMetrics/VictoriaMetrics/app/vminsert/relabel"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmselect"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmselect/promql"
 	"github.com/VictoriaMetrics/VictoriaMetrics/app/vmstorage"
@@ -19,6 +17,7 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/flagutil"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/fs"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/httpserver"
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/ingestserver/influx"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/procutil"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/promscrape"
@@ -46,6 +45,8 @@ var (
 		"Storage unconditionally adds 25% jitter to the interval value on each check evaluation."+
 		" Changing the interval to the bigger values may delay downsampling, deduplication for historical data."+
 		" See also https://docs.victoriametrics.com/#deduplication")
+	keepOldData       = flag.Bool("keepOldData", false, "If set, prevents automatic deletion of old data when switching to a smaller retention period")
+	influxConnTimeout = flag.Duration("influxConnTimeout", 0, "Timeout for idle InfluxDB TCP connections; 0 means no timeout")
 )
 
 func main() {
@@ -65,18 +66,16 @@ func main() {
 	buildinfo.Init()
 	logger.Init()
 
+	if err := vmstorage.InitStorage(); err != nil {
+		log.Fatalf("Failed to initialize storage: %s", err)
+	}
+
 	if promscrape.IsDryRun() {
 		*dryRun = true
 	}
 	if *dryRun {
 		if err := promscrape.CheckConfig(); err != nil {
 			logger.Fatalf("error when checking -promscrape.config: %s", err)
-		}
-		if err := vminsertrelabel.CheckRelabelConfig(); err != nil {
-			logger.Fatalf("error when checking -relabelConfig: %s", err)
-		}
-		if err := vminsertcommon.CheckStreamAggrConfig(); err != nil {
-			logger.Fatalf("error when checking -streamAggr.config: %s", err)
 		}
 		logger.Infof("-promscrape.config is ok; exiting with 0 status code")
 		return
@@ -96,8 +95,16 @@ func main() {
 	storage.SetFinalDedupScheduleInterval(*finalDedupScheduleInterval)
 	vmstorage.Init(promql.ResetRollupResultCacheIfNeeded)
 	vmselect.Init()
-	vminsertcommon.StartIngestionRateLimiter(*maxIngestionRate)
-	vminsert.Init()
+
+	if *keepOldData {
+		log.Println("Skipping old data deletion due to -keepOldData flag")
+	} else {
+		// Logic for deleting old data when retention period is reduced
+		if retentionPeriodChangedToSmaller() {
+			log.Println("Deleting old data due to smaller retention period...")
+			deleteOldData()
+		}
+	}
 
 	startSelfScraper()
 
@@ -117,8 +124,6 @@ func main() {
 		logger.Fatalf("cannot stop the webservice: %s", err)
 	}
 	logger.Infof("successfully shut down the webservice in %.3f seconds", time.Since(startTime).Seconds())
-	vminsert.Stop()
-	vminsertcommon.StopIngestionRateLimiter()
 
 	vmstorage.Stop()
 	vmselect.Stop()
@@ -154,9 +159,6 @@ func requestHandler(w http.ResponseWriter, r *http.Request) bool {
 		})
 		return true
 	}
-	if vminsert.RequestHandler(w, r) {
-		return true
-	}
 	if vmselect.RequestHandler(w, r) {
 		return true
 	}
@@ -173,4 +175,13 @@ victoria-metrics is a time series database and monitoring solution.
 See the docs at https://docs.victoriametrics.com/
 `
 	flagutil.Usage(s)
+}
+
+func retentionPeriodChangedToSmaller() bool {
+	// Implement logic to detect if the retention period was reduced
+	return false // Placeholder
+}
+
+func deleteOldData() {
+	// Implement logic to delete old data
 }

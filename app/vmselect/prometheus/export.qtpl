@@ -9,6 +9,11 @@
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/storage"
 ) %}
 
+// Define or import exportBlock
+func exportBlock() {
+    // Define export block logic
+}
+
 {% stripspace %}
 
 {% func ExportCSVLine(xb *exportBlock, fieldNames []string) %}
@@ -197,3 +202,4 @@
 {% endfunc %}
 
 {% endstripspace %}
+

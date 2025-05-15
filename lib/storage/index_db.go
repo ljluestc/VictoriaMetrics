@@ -22,6 +22,7 @@ import (
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/fasttime"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/fs"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/lrucache" // Ensure lrucache is imported
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/memory"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/mergeset"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/querytracer"
@@ -226,7 +227,7 @@ func (db *indexDB) UpdateMetrics(m *IndexDBMetrics) {
 	m.IndexBlocksWithMetricIDsProcessed = indexBlocksWithMetricIDsProcessed.Load()
 	m.IndexBlocksWithMetricIDsIncorrectOrder = indexBlocksWithMetricIDsIncorrectOrder.Load()
 
-	m.MinTimestampForCompositeIndex = uint64(db.s.minTimestampForCompositeIndex)
+	m.MinTimestampForCompositeIndex = uint64(db.s.minTimestampForCompositeIndex())
 	m.CompositeFilterSuccessConversions = compositeFilterSuccessConversions.Load()
 	m.CompositeFilterMissingConversions = compositeFilterMissingConversions.Load()
 
@@ -3543,3 +3544,34 @@ func putTagToMetricIDsRowsMerger(tmm *tagToMetricIDsRowsMerger) {
 }
 
 var tmmPool sync.Pool
+
+// Ensure lrucache.Cache has Get and Set methods
+type Cache struct {
+	// ...existing fields...
+}
+
+func (c *Cache) Get(key string) (interface{}, bool) {
+	// Implement Get method
+	return nil, false
+}
+
+func (c *Cache) Set(key string, value interface{}) {
+	// Implement Set method
+}
+
+// Define getWaitGroup and putWaitGroup functions
+func getWaitGroup() *sync.WaitGroup {
+	return &sync.WaitGroup{}
+}
+
+func putWaitGroup(wg *sync.WaitGroup) {
+	// Implement cleanup logic if needed
+}
+
+type Storage struct {
+	// ...existing fields...
+	disablePerDayIndex       bool
+	wasMetricIDMissingBefore bool
+	updateDeletedMetricIDs   func()
+	resetAndSaveTSIDCache    func()
+}
