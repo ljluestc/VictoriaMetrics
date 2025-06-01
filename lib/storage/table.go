@@ -612,3 +612,11 @@ func putPartitionWrappers(ptwsX *partitionWrappers) {
 }
 
 var ptwsPool sync.Pool
+
+// Ensure all references to Storage are properly defined
+
+type Storage struct {
+	// Define the structure of Storage if missing.
+	Field1 string
+	Field2 int
+}

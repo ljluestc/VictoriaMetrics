@@ -477,3 +477,6 @@ const (
 	paceLimiterMediumIterationsMask = 1<<14 - 1
 	paceLimiterSlowIterationsMask   = 1<<12 - 1
 )
+
+// Ensure `Storage` is used correctly and remove duplicate declarations.
+var Storage = someInitializationFunction()

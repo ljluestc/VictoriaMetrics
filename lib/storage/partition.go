@@ -2101,3 +2101,7 @@ func mustReadPartNamesFromDir(srcDir string) []string {
 func isSpecialDir(name string) bool {
 	return name == "tmp" || name == "txn" || name == snapshotsDirname || fs.IsScheduledForRemoval(name)
 }
+
+type Storage struct {
+	// Define fields here
+}
