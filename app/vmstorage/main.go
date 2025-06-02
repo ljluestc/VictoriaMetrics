@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -81,11 +82,12 @@ var (
 		"See https://docs.victoriametrics.com/victoriametrics/single-server-victoriametrics/#track-ingested-metrics-usage")
 	cacheSizeMetricNamesStats = flagutil.NewBytes("storage.cacheSizeMetricNamesStats", 0, "Overrides max size for storage/metricNamesStatsTracker cache. "+
 		"See https://docs.victoriametrics.com/victoriametrics/single-server-victoriametrics/#cache-tuning")
+	keepOldData = flag.Bool("keepOldData", false, "Prevent deletion of old data when retention period is reduced")
 )
 
 // CheckTimeRange returns true if the given tr is denied for querying.
 func CheckTimeRange(tr storage.TimeRange) error {
-	if !*denyQueriesOutsideRetention {
+	if (!*denyQueriesOutsideRetention) {
 		return nil
 	}
 	minAllowedTimestamp := int64(fasttime.UnixTimestamp()*1000) - retentionPeriod.Milliseconds()
@@ -127,6 +129,7 @@ func Init(resetCacheIfNeeded func(mrs []storage.MetricRow)) {
 		MaxDailySeries:        *maxDailySeries,
 		DisablePerDayIndex:    *disablePerDayIndex,
 		TrackMetricNamesStats: *trackMetricNamesStats,
+		KeepOldData:           *keepOldData, // Ensure keepOldData is passed correctly
 	}
 	strg := storage.MustOpenStorage(*DataPath, opts)
 	Storage = strg
@@ -324,10 +327,10 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) bool {
 		prometheusCompatibleResponse = true
 		path = "/snapshot/create"
 	}
-	if !strings.HasPrefix(path, "/snapshot/") {
+	if (!strings.HasPrefix(path, "/snapshot/")) {
 		return false
 	}
-	if !httpserver.CheckAuthFlag(w, r, snapshotAuthKey) {
+	if (!httpserver.CheckAuthFlag(w, r, snapshotAuthKey)) {
 		return true
 	}
 	path = path[len("/snapshot"):]
@@ -337,7 +340,7 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) bool {
 		snapshotsCreateTotal.Inc()
 		w.Header().Set("Content-Type", "application/json")
 		snapshotPath := Storage.MustCreateSnapshot()
-		if prometheusCompatibleResponse {
+		if (prometheusCompatibleResponse) {
 			fmt.Fprintf(w, `{"status":"success","data":{"name":%s}}`, stringsutil.JSONString(snapshotPath))
 		} else {
 			fmt.Fprintf(w, `{"status":"ok","snapshot":%s}`, stringsutil.JSONString(snapshotPath))
@@ -348,7 +351,7 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) bool {
 		w.Header().Set("Content-Type", "application/json")
 		snapshots := Storage.MustListSnapshots()
 		fmt.Fprintf(w, `{"status":"ok","snapshots":[`)
-		if len(snapshots) > 0 {
+		if (len(snapshots) > 0) {
 			for _, snapshot := range snapshots[:len(snapshots)-1] {
 				fmt.Fprintf(w, "\n%q,", snapshot)
 			}
@@ -363,8 +366,8 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) bool {
 
 		snapshots := Storage.MustListSnapshots()
 		for _, snName := range snapshots {
-			if snName == snapshotName {
-				if err := Storage.DeleteSnapshot(snName); err != nil {
+			if (snName == snapshotName) {
+				if (err := Storage.DeleteSnapshot(snName); err != nil) {
 					err = fmt.Errorf("cannot delete snapshot %q: %w", snName, err)
 					jsonResponseError(w, err)
 					snapshotsDeleteErrorsTotal.Inc()
@@ -383,7 +386,7 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) bool {
 		w.Header().Set("Content-Type", "application/json")
 		snapshots := Storage.MustListSnapshots()
 		for _, snapshotName := range snapshots {
-			if err := Storage.DeleteSnapshot(snapshotName); err != nil {
+			if (err := Storage.DeleteSnapshot(snapshotName); err != nil) {
 				err = fmt.Errorf("cannot delete snapshot %q: %w", snapshotName, err)
 				jsonResponseError(w, err)
 				snapshotsDeleteAllErrorsTotal.Inc()
@@ -399,7 +402,7 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) bool {
 
 func initStaleSnapshotsRemover(strg *storage.Storage) {
 	staleSnapshotsRemoverCh = make(chan struct{})
-	if snapshotsMaxAge.Duration() <= 0 {
+	if (snapshotsMaxAge.Duration() <= 0) {
 		return
 	}
 	snapshotsMaxAgeDur := snapshotsMaxAge.Duration()
@@ -454,7 +457,7 @@ func writeStorageMetrics(w io.Writer, strg *storage.Storage) {
 	metrics.WriteGaugeUint64(w, fmt.Sprintf(`vm_free_disk_space_limit_bytes{path=%q}`, *DataPath), uint64(minFreeDiskSpaceBytes.N))
 
 	isReadOnly := 0
-	if strg.IsReadOnly() {
+	if (strg.IsReadOnly()) {
 		isReadOnly = 1
 	}
 	metrics.WriteGaugeUint64(w, fmt.Sprintf(`vm_storage_is_read_only{path=%q}`, *DataPath), uint64(isReadOnly))
@@ -535,10 +538,10 @@ func writeStorageMetrics(w io.Writer, strg *storage.Storage) {
 	metrics.WriteCounterUint64(w, `vm_rows_ignored_total{reason="big_timestamp"}`, m.TooBigTimestampRows)
 	metrics.WriteCounterUint64(w, `vm_rows_ignored_total{reason="small_timestamp"}`, m.TooSmallTimestampRows)
 	metrics.WriteCounterUint64(w, `vm_rows_ignored_total{reason="invalid_raw_metric_name"}`, m.InvalidRawMetricNames)
-	if *maxHourlySeries > 0 {
+	if (*maxHourlySeries > 0) {
 		metrics.WriteCounterUint64(w, `vm_rows_ignored_total{reason="hourly_limit_exceeded"}`, m.HourlySeriesLimitRowsDropped)
 	}
-	if *maxDailySeries > 0 {
+	if (*maxDailySeries > 0) {
 		metrics.WriteCounterUint64(w, `vm_rows_ignored_total{reason="daily_limit_exceeded"}`, m.DailySeriesLimitRowsDropped)
 	}
 
@@ -549,13 +552,13 @@ func writeStorageMetrics(w io.Writer, strg *storage.Storage) {
 	metrics.WriteCounterUint64(w, `vm_slow_per_day_index_inserts_total`, m.SlowPerDayIndexInserts)
 	metrics.WriteCounterUint64(w, `vm_slow_metric_name_loads_total`, m.SlowMetricNameLoads)
 
-	if *maxHourlySeries > 0 {
+	if (*maxHourlySeries > 0) {
 		metrics.WriteGaugeUint64(w, `vm_hourly_series_limit_current_series`, m.HourlySeriesLimitCurrentSeries)
 		metrics.WriteGaugeUint64(w, `vm_hourly_series_limit_max_series`, m.HourlySeriesLimitMaxSeries)
 		metrics.WriteCounterUint64(w, `vm_hourly_series_limit_rows_dropped_total`, m.HourlySeriesLimitRowsDropped)
 	}
 
-	if *maxDailySeries > 0 {
+	if (*maxDailySeries > 0) {
 		metrics.WriteGaugeUint64(w, `vm_daily_series_limit_current_series`, m.DailySeriesLimitCurrentSeries)
 		metrics.WriteGaugeUint64(w, `vm_daily_series_limit_max_series`, m.DailySeriesLimitMaxSeries)
 		metrics.WriteCounterUint64(w, `vm_daily_series_limit_rows_dropped_total`, m.DailySeriesLimitRowsDropped)
@@ -607,7 +610,6 @@ func writeStorageMetrics(w io.Writer, strg *storage.Storage) {
 	metrics.WriteGaugeUint64(w, `vm_cache_size_bytes{type="indexdb/tagFiltersToMetricIDs"}`, idbm.TagFiltersToMetricIDsCacheSizeBytes)
 	metrics.WriteGaugeUint64(w, `vm_cache_size_bytes{type="storage/regexps"}`, uint64(storage.RegexpCacheSizeBytes()))
 	metrics.WriteGaugeUint64(w, `vm_cache_size_bytes{type="storage/regexpPrefixes"}`, uint64(storage.RegexpPrefixesCacheSizeBytes()))
-	metrics.WriteGaugeUint64(w, `vm_cache_size_bytes{type="storage/prefetchedMetricIDs"}`, m.PrefetchedMetricIDsSizeBytes)
 
 	metrics.WriteGaugeUint64(w, `vm_cache_size_max_bytes{type="storage/tsid"}`, m.TSIDCacheSizeMaxBytes)
 	metrics.WriteGaugeUint64(w, `vm_cache_size_max_bytes{type="storage/metricIDs"}`, m.MetricIDCacheSizeMaxBytes)
@@ -649,7 +651,7 @@ func writeStorageMetrics(w io.Writer, strg *storage.Storage) {
 
 	metrics.WriteGaugeUint64(w, `vm_next_retention_seconds`, m.NextRetentionSeconds)
 
-	if *trackMetricNamesStats {
+	if (*trackMetricNamesStats) {
 		metrics.WriteCounterUint64(w, `vm_cache_size_bytes{type="storage/metricNamesStatsTracker"}`, m.MetricNamesUsageTrackerSizeBytes)
 		metrics.WriteCounterUint64(w, `vm_cache_size{type="storage/metricNamesStatsTracker"}`, m.MetricNamesUsageTrackerSize)
 		metrics.WriteCounterUint64(w, `vm_cache_size_max_bytes{type="storage/metricNamesStatsTracker"}`, m.MetricNamesUsageTrackerSizeMaxBytes)
@@ -665,3 +667,4 @@ func jsonResponseError(w http.ResponseWriter, err error) {
 	errStr := err.Error()
 	fmt.Fprintf(w, `{"status":"error","msg":%s}`, stringsutil.JSONString(errStr))
 }
+

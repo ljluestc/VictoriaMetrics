@@ -1,15 +1,24 @@
 package ec2
 
 import (
+	"context"
 	"encoding/xml"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/awsapi"
+	"github.com/VictoriaMetrics/VictoriaMetrics/lib/logger"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/promscrape/discoveryutil"
 	"github.com/VictoriaMetrics/VictoriaMetrics/lib/promutil"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 )
-
 // getInstancesLabels returns labels for ec2 instances obtained from the given cfg
 func getInstancesLabels(cfg *apiConfig) ([]*promutil.Labels, error) {
 	rs, err := getReservations(cfg)
@@ -192,4 +201,46 @@ func (inst *Instance) appendTargetLabels(ms []*promutil.Labels, ownerID, region 
 	}
 	ms = append(ms, m)
 	return ms
+}
+
+// Discovery discovers EC2 instances.
+type Discovery struct {
+	// ...existing code...
+	profile string // New field for profile
+	// ...existing code...
+}
+
+// NewDiscovery creates a new EC2 discovery.
+func NewDiscovery(cfg *EC2SDConfig) (*Discovery, error) {
+	var awsCfg aws.Config
+	var err error
+
+	if cfg.Profile != "" {
+		awsCfg, err = config.LoadDefaultConfig(context.Background(),
+			config.WithSharedConfigProfile(cfg.Profile),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load AWS profile %q: %w", cfg.Profile, err)
+		}
+	} else {
+		// ...existing code...
+	}
+
+	if cfg.RoleARN != "" {
+		stsClient := sts.NewFromConfig(awsCfg)
+		creds := stscreds.NewAssumeRoleProvider(stsClient, cfg.RoleARN)
+		awsCfg.Credentials = aws.NewCredentialsCache(creds)
+	}
+
+	client := ec2.NewFromConfig(awsCfg, func(o *ec2.Options) {
+		// ...existing code...
+	})
+
+	// ...existing code...
+
+	return &Discovery{
+		client: client,
+		// ...existing code...
+		profile: cfg.Profile,
+	}, nil
 }

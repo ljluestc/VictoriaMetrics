@@ -2706,7 +2706,7 @@ func (is *indexSearch) getMetricIDsForDateAndFilters(qt *querytracer.Tracer, dat
 			// Too many time series found by a single tag filter. Move the filter to the end of list.
 			qtChild.Printf("the filter={%s} matches at least %d series; postpone it", tf, maxDateMetrics)
 			storeLoopsCount(&tfw, int64Max-1)
-			tfwsRemaining = append(tfwsRemaining, tfw)
+			tfwsRemaining = append(tfwsRemaining, tfws[i+1:]...)
 			continue
 		}
 		storeLoopsCount(&tfw, loopsCount)
@@ -3000,7 +3000,7 @@ func (is *indexSearch) hasMetricIDNoExtDB(metricID uint64) bool {
 		if err == io.EOF {
 			return false
 		}
-		logger.Panicf("FATAL: error when for metricID=%d; searchPrefix %q: %s", metricID, kb.B, err)
+		logger.Panicf("FATAL: error when for metricID=%d; searchPrefix %q: %s", kb.B, metricID, err)
 	}
 	return true
 }
@@ -3083,7 +3083,7 @@ func appendDateTagFilterCacheKey(dst []byte, indexDBName string, date uint64, tf
 	return dst
 }
 
-func (is *indexSearch) getMetricIDsForDate(date uint64, maxMetrics int) (*uint64set.Set, error) {
+func (is *indexSearch) getMetricIDsForDate(uint64, maxMetrics int) (*uint64set.Set, error) {
 	// Extract all the metricIDs from (date, __name__=value)->metricIDs entries.
 	kb := kbPool.Get()
 	defer kbPool.Put(kb)
